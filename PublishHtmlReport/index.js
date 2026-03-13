@@ -1,7 +1,7 @@
 const tl = require('azure-pipelines-task-lib/task');
 const globby = require('globby');
-const { readFileSync, writeFileSync, statSync } = require('fs');
-const { resolve, basename, dirname } = require('path');
+const { readFileSync, writeFileSync, statSync } = require('node:fs');
+const { resolve, basename, dirname } = require('node:path');
 const cheerio = require('cheerio');
 const dashify = require('dashify');
 
@@ -12,6 +12,7 @@ function addTaskAttachment(attachmentProps) {
 function run() {
     try {
         const reportInputPath = tl.getPathInput('reportDir', true, false);
+        const allowUnsafeScripts = tl.getBoolInput('allowUnsafeScripts', false);
         const isDir = statSync(reportInputPath).isDirectory();
         let files = [];
         let summaryPath;
@@ -38,7 +39,7 @@ function run() {
             writeFileSync(file, document.html());
 
             const attachmentProperties = {
-                name: generateAttachmentName(basename(file), isDir),
+                name: generateAttachmentName(basename(file), isDir, allowUnsafeScripts),
                 type: 'report-html',
                 path: file
             };
@@ -55,11 +56,12 @@ function run() {
     }
 }
 
-function generateAttachmentName(fileName, isDirectory) {
+function generateAttachmentName(fileName, isDirectory, allowUnsafeScripts) {
     const jobName = dashify(tl.getVariable('Agent.JobName'));
     const stageName = dashify(tl.getVariable('System.StageDisplayName'));
     const stageAttempt = tl.getVariable('System.StageAttempt');
     const useFilenamesAsTabHeaders = tl.getBoolInput('useFilenameTabs', true);
+    const renderingMode = allowUnsafeScripts ? 'allow-scripts' : 'sandboxed';
     let tabName;
     if (isDirectory && useFilenamesAsTabHeaders) {
         tabName = basename(fileName)
@@ -67,7 +69,7 @@ function generateAttachmentName(fileName, isDirectory) {
         tabName = tl.getInput('tabName', false) || 'Html-Report';
     }
 
-    return `${tabName}~${jobName}~${stageName}~${stageAttempt}~${fileName}`;
+    return `${tabName}~${jobName}~${stageName}~${stageAttempt}~${fileName}~${renderingMode}`;
 }
 
 function generateSummaryName() {

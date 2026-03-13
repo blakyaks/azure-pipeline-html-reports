@@ -19,6 +19,7 @@ steps:
     inputs:
       reportDir: '$(ResultsPath)/reportName.html'
       useFilenameTabs: true
+      allowUnsafeScripts: false
       tabName: MyReport
 ```
 
@@ -27,6 +28,10 @@ steps:
 ### HTML file compatibility
 
 Due to the way this extension works, we recommend that any HTML files published operate as entirely self-contained, single page reports. External links or style sheets that are embedded in HTML files may not function within the Azure DevOps UI due to CORS restrictions. It is also not possible to use relative links in HTML reports that are published via the extension since these will not resolve to the build artifacts in Azure DevOps. Anchor links should work as expected.
+
+For security reasons, published reports are rendered in a sandboxed iframe. This removes the need for elevated build execution scope in the extension manifest and prevents active script content from escaping the report surface. Reports that depend on embedded JavaScript may no longer behave as fully interactive pages and should be exported as static self-contained HTML where possible.
+
+If you need to preserve client-side report behavior, set `allowUnsafeScripts: true` on the task. This still keeps the report in a sandboxed iframe, but it permits embedded JavaScript to run inside the report. Use it only for trusted report generators.
 
 ### Large HTML reports
 
@@ -42,6 +47,12 @@ Very large reports (e.g. greater than 50MB) may cause the task to exhaust the de
 Note that large reports will also take an extended time to load in the UI and should be avoided where possible by breaking down the reports into smaller units.
 
 ## Changelog
+
+### v1.3.1
+
+- Reduced extension scope from build execute to build read for loading report attachments
+- Reports now render in sandboxed iframes by default to prevent HTML content from escaping the report surface
+- Added `allowUnsafeScripts` as an explicit opt-in for trusted interactive reports that require embedded JavaScript
 
 ### v1.3.0
 
@@ -64,6 +75,7 @@ Note that large reports will also take an extended time to load in the UI and sh
   condition: succeededOrFailed()
   inputs:
     reportDir: 'cypress/reports'
+    allowUnsafeScripts: true
     tabName: 'E2E ${{ parameters.region }}-${{ parameters.slotName }}'
 ```
 
@@ -79,5 +91,6 @@ Task names and inputs were maintained to simplify update from previous releases.
   condition: succeededOrFailed()
   inputs:
     reportDir: 'cypress/reports/index.html'
+    allowUnsafeScripts: true
     tabName: 'E2E ${{ parameters.region }}-${{ parameters.slotName }}'
 ```
