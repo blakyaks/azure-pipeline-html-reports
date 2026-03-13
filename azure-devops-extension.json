@@ -2,7 +2,7 @@
     "manifestVersion": 1,
     "id": "azure-pipelines-html-reports",
     "publisher": "BlakYaks",
-    "version": "1.3.0",
+    "version": "1.3.1",
     "author": "Jakub Rumpca & BlakYaks",
     "name": "Html Reports",
     "description": "Embed HTML reports in Azure Pipelines",
@@ -30,7 +30,7 @@
         }
     },
     "scopes": [
-        "vso.build_execute"
+        "vso.build"
     ],
     "demands": [
         "api-version/3.0"

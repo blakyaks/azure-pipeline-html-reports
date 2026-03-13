@@ -31,7 +31,6 @@ function displayReports(attachmentClient: AttachmentClient) {
 abstract class AttachmentClient {
   protected attachments: Attachment[] = [];
   protected authHeaders: Object = undefined;
-  protected reportHtmlContent: string = undefined;
 
   public getAttachments(): Attachment[] {
     return this.attachments;
@@ -39,7 +38,7 @@ abstract class AttachmentClient {
 
   public getDownloadableAttachment(attachmentName: string): Attachment {
     const attachment = this.attachments.find((attachment) => attachment.name === attachmentName);
-    if (!(attachment && attachment._links && attachment._links.self && attachment._links.self.href)) {
+    if (!attachment?._links?.self?.href) {
       throw new Error("Attachment " + attachmentName + " is not downloadable");
     }
     return attachment;
@@ -47,25 +46,22 @@ abstract class AttachmentClient {
 
   public async getAttachmentContent(attachmentName: string): Promise<string> {
     if (this.authHeaders === undefined) {
-      console.log('Getting ADO access token.');
       const accessToken = await SDK.getAccessToken();
       const b64encodedAuth = btoa(':' + accessToken);
       this.authHeaders = { headers: { 'Authorization': 'Basic ' + b64encodedAuth } };
     }
-    console.log("Loading " + attachmentName + " attachment content.");
     const attachment = this.getDownloadableAttachment(attachmentName);
     const response = await fetch(attachment._links.self.href, this.authHeaders);
     if (!response.ok) {
       throw new Error(response.statusText);
     }
     const responseText = await response.text();
-    console.log(attachmentName + " content loaded.");
     return responseText;
   }
 }
 
 class BuildAttachmentClient extends AttachmentClient {
-  private build: Build;
+  private readonly build: Build;
 
   constructor(build: Build) {
     super();
@@ -75,7 +71,6 @@ class BuildAttachmentClient extends AttachmentClient {
   public async init() {
     const buildClient: BuildRestClient = getClient(BuildRestClient);
     this.attachments = await buildClient.getAttachments(this.build.project.id, this.build.id, ATTACHMENT_TYPE);
-    console.log(this.attachments);
   }
 }
 
@@ -83,14 +78,25 @@ interface TaskAttachmentPanelProps {
   attachmentClient: AttachmentClient;
 }
 
-export default class TaskAttachmentPanel extends React.Component<TaskAttachmentPanelProps, { selectedTabId: string, tabContents: Map<string, string>, tabInitialContent: string; }> {
+interface AttachmentMetadata {
+  displayName: string;
+  stageName: string;
+  stageAttempt: number;
+  allowUnsafeScripts: boolean;
+}
+
+interface TaskAttachmentPanelState {
+  selectedTabId: string;
+  tabContents: Map<string, string>;
+}
+
+export default class TaskAttachmentPanel extends React.Component<TaskAttachmentPanelProps, TaskAttachmentPanelState> {
 
   constructor(props: TaskAttachmentPanelProps) {
     super(props);
     this.state = {
       selectedTabId: props.attachmentClient.getAttachments()[0]?.name || "",
-      tabContents: new Map<string, string>(),
-      tabInitialContent: '<div class="wide"><p>Loading...</p></div>'
+      tabContents: new Map<string, string>()
     };
   }
 
@@ -106,31 +112,57 @@ export default class TaskAttachmentPanel extends React.Component<TaskAttachmentP
 
   fetchContent = (attachmentName: string) => {
     if (this.state.tabContents.has(attachmentName)) {
-        console.log("Content already fetched for: ", attachmentName);
         return;
     }
     this.props.attachmentClient.getAttachmentContent(attachmentName).then((content) => {
-        this.setState(prevState => ({
-            tabContents: prevState.tabContents.set(attachmentName, `<iframe class="wide tab-content flex-row flex-center" srcdoc="${this.escapeHTML(content)}"></iframe>`)
-        }));
+        this.setState(prevState => {
+            const tabContents = new Map(prevState.tabContents);
+            tabContents.set(attachmentName, content);
+
+            return { tabContents };
+        });
     }).catch(error => {
         console.error("Failed to fetch content for: ", attachmentName, error);
     });
   };
 
+  parseAttachmentMetadata(attachmentName: string): AttachmentMetadata {
+    const metadata = attachmentName.split('~');
+    const stageAttempt = Number.parseInt(metadata[3]);
 
-  escapeHTML(str: string) {
-    return str.replace(/[&<>'"]/g, tag => ({
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      "'": '&#39;',
-      '"': '&quot;'
-    }[tag] || tag));
+    return {
+      displayName: metadata[0] || attachmentName,
+      stageName: metadata[2] || "",
+      stageAttempt: Number.isNaN(stageAttempt) ? 0 : stageAttempt,
+      allowUnsafeScripts: metadata[5] === "allow-scripts"
+    };
+  }
+
+  renderReportFrame(content?: string, allowUnsafeScripts?: boolean) {
+    if (!content) {
+      return <div className="wide"><p>Loading...</p></div>;
+    }
+
+    return (
+      <div className="report-frame-container">
+        {allowUnsafeScripts ? (
+          <div className="report-warning">
+            Scripts were explicitly enabled for this report. Only use this mode for trusted HTML content.
+          </div>
+        ) : null}
+        <iframe
+          className={`report-frame tab-content flex-row flex-center${allowUnsafeScripts ? " report-frame--with-warning" : ""}`}
+          sandbox={allowUnsafeScripts ? "allow-scripts" : ""}
+          referrerPolicy="no-referrer"
+          srcDoc={content}
+          title="HTML report"
+        />
+      </div>
+    );
   }
 
   render() {
-    const { selectedTabId, tabContents, tabInitialContent } = this.state;
+    const { selectedTabId, tabContents } = this.state;
     const attachments = this.props.attachmentClient.getAttachments();
 
     if (attachments.length === 0) {
@@ -149,11 +181,11 @@ export default class TaskAttachmentPanel extends React.Component<TaskAttachmentP
                         tabSize={TabSize.Tall}
                     >
                         {attachments.map(attachment => {
-                            const metadata = attachment.name.split('~');
-                            let name = metadata[0];
+                            const metadata = this.parseAttachmentMetadata(attachment.name);
+                            let name = metadata.displayName;
                             let badgeCount = undefined;
-                            if (metadata[2] !== '__default' && parseInt(metadata[3]) > 1) {
-                                badgeCount = parseInt(metadata[3]);
+                            if (metadata.stageName !== '__default' && metadata.stageAttempt > 1) {
+                              badgeCount = metadata.stageAttempt;
                             }
                             return (
                                 <Tab
@@ -168,12 +200,18 @@ export default class TaskAttachmentPanel extends React.Component<TaskAttachmentP
                     </TabBar>
                     <Observer selectedTabId={selectedTabId} tabContents={tabContents}>
                         {(props: { selectedTabId: string }) => {
-                            return <span dangerouslySetInnerHTML={{ __html: tabContents.get(props.selectedTabId) || tabInitialContent }} />;
+                        return this.renderReportFrame(
+                          tabContents.get(props.selectedTabId),
+                          this.parseAttachmentMetadata(props.selectedTabId).allowUnsafeScripts
+                        );
                         }}
                     </Observer>
                 </>
             ) : (
-                <span dangerouslySetInnerHTML={{ __html: tabContents.get(attachments[0].name) || tabInitialContent }} />
+                  this.renderReportFrame(
+                    tabContents.get(attachments[0].name),
+                    this.parseAttachmentMetadata(attachments[0].name).allowUnsafeScripts
+                  )
             )}
         </div>
     );

@@ -24,6 +24,34 @@ html, body {
   background-color: #F8F8F8;
 }
 
+.report-frame-container {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 94%;
+}
+
+.report-frame {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.report-frame--with-warning {
+  height: calc(100% - 40px);
+}
+
+.report-warning {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 10px 12px;
+  background-color: #fff4ce;
+  border-bottom: 1px solid #e5c365;
+  color: #5c2e00;
+  font-size: 12px;
+  font-family: "Segoe UI VSS (Regular)","Segoe UI","-apple-system",BlinkMacSystemFont,Roboto,"Helvetica Neue",Helvetica,Ubuntu,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+}
+
 #protractor-ext-message p, .wide p {
   padding: 0;
   margin: auto 0;

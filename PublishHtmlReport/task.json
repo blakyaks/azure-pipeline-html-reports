@@ -13,7 +13,7 @@
   "version": {
     "Major": "1",
     "Minor": "3",
-    "Patch": "0"
+    "Patch": "1"
   },
   "minimumAgentVersion": "2.144.0",
   "instanceNameFormat": "Publish Html Report",
@@ -41,6 +41,14 @@
       "defaultValue": "true",
       "required": false,
       "helpMarkDown": "When using reports from a directory, use the filename as the tab header for each file."
+    },
+    {
+      "name": "allowUnsafeScripts",
+      "type": "boolean",
+      "label": "Allow scripts inside report iframe",
+      "defaultValue": "false",
+      "required": false,
+      "helpMarkDown": "Opt-in only. Allows JavaScript embedded in the published HTML report to run inside a sandboxed iframe. This improves compatibility for interactive reports but increases risk if the report content is untrusted."
     }
   ],
   "execution": {
